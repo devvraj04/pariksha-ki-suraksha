@@ -446,7 +446,7 @@ Assemble key shares in RAM, decrypt paper, open a print authorization window.
 ---
 
 #### `GET /vault/papers/{paper_id}/view`
-Stream decrypted paper to protected canvas. Returns a short-lived pre-signed token.
+Stream decrypted paper to protected canvas. Generates and returns a single-use, short-lived view token. This token is recorded in the `vault_view_tokens` table and invalidated immediately upon first use (or after 60 seconds) to prevent replay attacks.
 
 **Auth:** `print_operator` (only during active print session)  
 **Response 200:**
@@ -454,8 +454,8 @@ Stream decrypted paper to protected canvas. Returns a short-lived pre-signed tok
 {
   "success": true,
   "data": {
-    "view_token": "short-lived-jwt",
-    "expires_in_seconds": 300
+    "view_token": "single-use-token-uuid",
+    "expires_in_seconds": 60
   }
 }
 ```

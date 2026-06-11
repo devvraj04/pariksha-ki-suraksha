@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  fastapi-backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./apps/backend:/app
+    env_file:
+      - .env
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  nextjs-frontend:
+    build:
+      context: ./apps/frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    command: npm run dev
+
+  vision-agent:
+    build:
+      context: .
+      dockerfile: workers/vision_agent/Dockerfile
+    depends_on:
+      fastapi-backend:
+        condition: service_healthy
+    env_file:
+      - .env
+    devices:
+      - "/dev/video0:/dev/video0" # Webcam passthrough (Linux)
+    command: python workers/vision_agent/agent.py --location-type print_room --api-base-url http://fastapi-backend:8000 --internal-api-key dev-internal-key
+
+  forensic-worker:
+    build:
+      context: .
+      dockerfile: workers/forensic_worker/Dockerfile
+    depends_on:
+      fastapi-backend:
+        condition: service_healthy
+    env_file:
+      - .env
+    command: python workers/forensic_worker/worker.py

@@ -2,7 +2,7 @@
 
 > **Version:** 1.0.0 | **Hackathon:** FAR AWAY 2026 | **Document Purpose:** Complete build specification for coding agents and team developers.
 > **Read before coding:** `01_SYSTEM_DESIGN.md` (architecture & APIs) and `02_DATABASE_DESIGN.md` (schema & RLS).
-> **Monorepo root:** `leakguard-ai/`
+> **Monorepo root:** `pariksha-ki-suraksha/`
 
 ---
 
@@ -13,7 +13,7 @@ The following items were identified during plan preparation. **Do not implement 
 | # | Flag | Current Design | Proposed Change | Risk if Unchanged |
 |---|---|---|---|---|
 | **F-01** | Shamir's is described as "2-of-2" in the API docs but "2-of-N" in the architecture doc | API doc says both shares required | Clarify and hard-code threshold as `k=2, n=2` | Ambiguity may cause two developers to build incompatible key-assembly logic |
-| **F-02** | `GET /vault/papers/{paper_id}/view` streams to canvas via "short-lived pre-signed token" — the token storage mechanism is undefined | Token implied but not designed | Add a `vault_view_tokens` table with a 60-second TTL and `is_used BOOLEAN` column | Without this, the protected canvas has no replay-attack protection |
+| **F-02** | `GET /vault/papers/{paper_id}/view` streams to canvas via "short-lived pre-signed token" — the token storage mechanism is undefined | Token implied but not designed | **RESOLVED**: Added `vault_view_tokens` table with 60-second TTL and `is_used` column (Migration `011_vault_view_tokens.sql`) | None (replay-attack protection is fully implemented in database) |
 | **F-03** | YOLOv8 agents (print room + exam hall) are described as separate processes but share identical logic | Two separate workers defined | Unify into one `vision_agent.py` with a `--location-type` CLI flag to reduce duplication | Minimal risk, purely architectural cleanliness |
 | **F-04** | `batch_receptions.count_mismatch` uses a `GENERATED ALWAYS AS` computed column — Supabase's Postgres version may or may not support this cleanly via migrations | Computed column in schema | Fallback: compute `count_mismatch` in the FastAPI service layer and write it as a regular boolean | If Supabase migration fails, supervisor can't receive batches |
 | **F-05** | No rate-limiting middleware is defined for the FastAPI backend beyond the forensic upload note | Rate limit mentioned only for `/forensic/upload` | Add `slowapi` middleware globally with per-route overrides | Public endpoints could be abused during demo |
@@ -23,7 +23,7 @@ The following items were identified during plan preparation. **Do not implement 
 ## Repository Structure
 
 ```
-leakguard-ai/                          ← Monorepo root
+pariksha-ki-suraksha/                  ← Monorepo root
 ├── apps/
 │   ├── frontend/                      ← Next.js 14 (App Router)
 │   │   ├── app/                       ← All routes live here
@@ -56,7 +56,8 @@ leakguard-ai/                          ← Monorepo root
 │       ├── 007_module5_tables.sql
 │       ├── 008_audit_tables.sql
 │       ├── 009_indexes.sql
-│       └── 010_rls_policies.sql
+│       ├── 010_rls_policies.sql
+│       └── 011_vault_view_tokens.sql
 ├── docker-compose.yml
 └── .env.example
 ```
@@ -100,10 +101,11 @@ Create all SQL migration files under `supabase/migrations/` in the numbered orde
 - `003_module1_tables.sql` through `008_audit_tables.sql` — One file per module's tables. Use ON DELETE constraints exactly as documented.
 - `009_indexes.sql` — All `CREATE INDEX` statements from §10 of the DB design doc, copied verbatim.
 - `010_rls_policies.sql` — Implement every RLS policy from the §11 summary table. For each table/role combination marked with permissions, write a corresponding `CREATE POLICY` statement. Tables with no public access get `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` but no permissive public policies.
+- `011_vault_view_tokens.sql` — Set up the single-use `vault_view_tokens` table, its lookup index, and RLS policies for replay-attack protection.
 
 **Expected Output:**
-- 10 SQL migration files, all runnable against Supabase without errors.
-- Supabase dashboard shows all tables created, all indexes present, RLS enabled on all tables listed in §11.
+- 11 SQL migration files, all runnable against Supabase without errors.
+- Supabase dashboard shows all tables created (including `vault_view_tokens`), all indexes present, RLS enabled on all tables listed in §11.
 
 ---
 
@@ -803,7 +805,7 @@ fastapi==0.111.0
 uvicorn[standard]==0.29.0
 python-multipart==0.0.9
 pycryptodome==3.20.0
-secretsharing==1.0.0      # or implement manually
+secretsharing==0.2.6      # or implement manually
 pymupdf==1.24.0            # PyMuPDF / fitz
 qrcode[pil]==7.4.2
 supabase==2.4.0
@@ -811,7 +813,7 @@ python-jose[cryptography]==3.3.0
 slowapi==0.1.9
 polyline==2.0.0
 haversine==2.8.1
-httpx==0.27.0
+httpx==0.25.2
 
 # workers/vision_agent/requirements.txt
 ultralytics==8.2.0

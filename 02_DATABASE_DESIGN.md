@@ -58,7 +58,8 @@ users ──────────────────────── u
   └─── (supervisor) ─────────── omr_records (1:many)
   └─── (supervisor) ─────────── admit_card_scans (1:many)
 
-exams ──────────────────────── papers (1:many)
+exams ──────────────────────── papers (1:many) ──► key_shares (1:2)
+  │                              │             ──► vault_view_tokens (1:many)
   │                              │
   └──── exam_centers (many:many via exam_center_assignments)
   └──── students (many:many via exam_enrollments)
@@ -307,6 +308,21 @@ Stores alerts from YOLOv8 vision agents.
 | `frame_storage_path` | TEXT | NULLABLE | Supabase Storage path to flagged frame snapshot |
 | `is_reviewed` | BOOLEAN | NOT NULL DEFAULT FALSE | Admin acknowledgement flag |
 | `triggered_abort` | BOOLEAN | NOT NULL DEFAULT FALSE | Whether this alert triggered a print job abort |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+---
+
+### `vault_view_tokens`
+
+Single-use tokens for viewing decrypted papers, securing against replay attacks.
+
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `paper_id` | UUID | FK → `papers.id` ON DELETE CASCADE | |
+| `token` | TEXT | NOT NULL UNIQUE | Single-use view token |
+| `is_used` | BOOLEAN | NOT NULL DEFAULT FALSE | Marked TRUE on use |
+| `expires_at` | TIMESTAMPTZ | NOT NULL DEFAULT (NOW() + INTERVAL '60 seconds') | Token TTL |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 
 ---
@@ -571,6 +587,9 @@ CREATE INDEX idx_watermark_registry_print_job_id ON watermark_registry(print_job
 CREATE INDEX idx_watermark_registry_batch_id ON watermark_registry(watermark_batch_id);
 CREATE INDEX idx_watermark_registry_tmc_operator ON watermark_registry((tmc_payload->>'operator_id'));
 
+-- vault_view_tokens
+CREATE INDEX idx_vault_view_tokens_lookup ON vault_view_tokens(token, is_used, expires_at);
+
 -- transit_batches
 CREATE INDEX idx_transit_batches_status ON transit_batches(status);
 CREATE INDEX idx_transit_batches_driver ON transit_batches(assigned_driver_id);
@@ -610,6 +629,7 @@ CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at DESC);
 | `papers` | ALL | — | SELECT (assigned) | — | — | — |
 | `key_shares` | SELECT, DELETE | SELECT own | — | — | — | — |
 | `print_sessions` | ALL | INSERT | SELECT (active) | — | — | — |
+| `vault_view_tokens` | ALL | — | SELECT (active) | — | — | — |
 | `print_jobs` | ALL | — | INSERT, SELECT own | — | — | — |
 | `watermark_registry` | SELECT | — | — | — | — | — |
 | `vision_alerts` | ALL | — | SELECT | — | SELECT | — |
