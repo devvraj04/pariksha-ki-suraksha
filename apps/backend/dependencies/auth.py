@@ -1,10 +1,14 @@
 import os
 from fastapi import Depends, HTTPException, Header, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from supabase import Client
 from dependencies.db import get_db
 
 # Load internal API key for vision agent security verification
 INTERNAL_WORKER_API_KEY = os.getenv("INTERNAL_WORKER_API_KEY", "dev-internal-key")
+
+# HTTPBearer scheme — this is what makes Swagger's Authorize button work
+_bearer_scheme = HTTPBearer(auto_error=True)
 
 class AuthenticatedUser:
     def __init__(self, user_id: str, email: str, role: str):
@@ -13,18 +17,12 @@ class AuthenticatedUser:
         self.role = role
 
 async def get_current_user(
-    authorization: str = Header(...), 
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Client = Depends(get_db)
 ) -> AuthenticatedUser:
     """Base dependency that extracts and validates the Supabase JWT and attaches the user profile role."""
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header format. Expected 'Bearer <JWT>'."
-        )
-    
-    token = authorization.split(" ")[1]
-    
+    token = credentials.credentials
+
     try:
         # Validate session token via GoTrue client
         user_resp = db.auth.get_user(token)
@@ -47,8 +45,9 @@ async def get_current_user(
         role = profile_resp.data[0]["role"]
         return AuthenticatedUser(user_id=user.id, email=user.email, role=role)
         
+    except HTTPException:
+        raise
     except Exception as e:
-        # Provide standard response format for validation failures
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Authentication error: {str(e)}"

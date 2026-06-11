@@ -1,26 +1,218 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+Devanagari:wght@400;600&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ── Backgrounds ── */
+  --color-bg-base:        #F2F1EE;   /* Ash White / Cream — primary page background */
+  --color-bg-soft:        #ECEAE5;   /* Warm cream — secondary sections */
+  --color-bg-glass:       rgba(255, 255, 255, 0.45);  /* Glass card fill */
+  --color-bg-glass-dark:  rgba(220, 218, 215, 0.30);  /* Darker glass for nested layers */
+  --color-bg-overlay:     rgba(242, 241, 238, 0.70);  /* Modal/drawer backdrop */
+
+  /* ── Heritage Indigo ── */
+  --color-indigo-900:     #0D1B3E;   /* Deepest — hero headers, top nav bar fill */
+  --color-indigo-800:     #132252;   /* Dark nav text, dividers */
+  --color-indigo-700:     #1A2D6B;   /* Primary headings */
+  --color-indigo-600:     #1E3A8A;   /* Active state */
+  --color-indigo-500:     #2B4EBF;   /* Focus rings, links */
+  --color-indigo-400:     #4B6FD4;   /* Hover states */
+  --color-indigo-100:     #D4DCF5;   /* Chip backgrounds */
+  --color-indigo-050:     #EEF1FB;   /* Highlighting bg */
+
+  /* ── Metallic Gold ── */
+  --color-gold-500:       #C9A84C;   /* Verified seal border */
+  --color-gold-400:       #D9BC6A;   /* Verified icon fill */
+  --color-gold-300:       #E8D08E;   
+  --color-gold-shine:     linear-gradient(135deg, #F0D080 0%, #C9A84C 40%, #A07830 70%, #D9BC6A 100%);
+
+  /* ── Status / Semantic ── */
+  --color-success:        #1A7A4A;   /* Green */
+  --color-success-bg:     rgba(26, 122, 74, 0.10);
+  --color-warning:        #B87B0A;   /* Amber */
+  --color-warning-bg:     rgba(184, 123, 10, 0.10);
+  --color-danger:         #B91C1C;   /* Red */
+  --color-danger-bg:      rgba(185, 28, 28, 0.10);
+  --color-neutral:        #64748B;
+
+  /* ── Text ── */
+  --color-text-primary:   #0D1B3E;
+  --color-text-secondary: #374151;
+  --color-text-muted:     #6B7280;
+  --color-text-inverse:   #F9F9F7;
+  --color-text-gold:      #A07830;
+
+  /* ── Borders & Dividers ── */
+  --color-border-glass:   rgba(255, 255, 255, 0.60);
+  --color-border-glass-b: rgba(180, 178, 174, 0.35);
+  --color-border-indigo:  rgba(30, 58, 138, 0.20);
+  --color-border-gold:    rgba(201, 168, 76, 0.55);
+
+  /* Fonts */
+  --font-display: 'Playfair Display', 'Noto Serif', Georgia, serif;
+  --font-body:    'Inter', 'DM Sans', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'IBM Plex Mono', monospace;
+  --font-indic:   'Noto Sans Devanagari', 'Hind', sans-serif;
+
+  /* Border Radius */
+  --radius-xs:    4px;
+  --radius-sm:    8px;
+  --radius-md:    12px;
+  --radius-card:  16px;
+  --radius-modal: 20px;
+  --radius-full:  9999px;
+
+  /* Shadow System */
+  --shadow-none:        none;
+  --shadow-glass:
+    0 4px 16px rgba(13, 27, 62, 0.08),
+    0 1px 4px  rgba(13, 27, 62, 0.06),
+    0 0  0 1px rgba(255, 255, 255, 0.60) inset;
+  --shadow-glass-deep:
+    0 8px 32px rgba(13, 27, 62, 0.12),
+    0 2px 8px  rgba(13, 27, 62, 0.08),
+    0 0  0 1px rgba(255, 255, 255, 0.40) inset;
+  --shadow-modal:
+    0 24px 64px rgba(13, 27, 62, 0.20),
+    0  8px 24px rgba(13, 27, 62, 0.12),
+    0  0   0 1px rgba(255, 255, 255, 0.65) inset;
+  --shadow-gold:
+    0 0 12px rgba(201, 168, 76, 0.40),
+    0 0  4px rgba(201, 168, 76, 0.25);
+  --shadow-danger:
+    0 0 12px rgba(185, 28, 28, 0.25),
+    0 0  4px rgba(185, 28, 28, 0.15);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@theme {
+  --color-cream-base: var(--color-bg-base);
+  --color-cream-soft: var(--color-bg-soft);
+  --color-indigo-nav: var(--color-indigo-900);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-bg-base);
+  background-image:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(30, 58, 138, 0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 90%, rgba(201, 168, 76, 0.05) 0%, transparent 50%);
+  color: var(--color-text-secondary);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+.glass-card {
+  background:           var(--color-bg-glass);
+  backdrop-filter:      blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border:               1px solid var(--color-border-glass);
+  border-bottom-color:  var(--color-border-glass-b);
+  border-right-color:   var(--color-border-glass-b);
+  border-radius:        var(--radius-card);
+  box-shadow:           var(--shadow-glass);
+  position:             relative;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.10) 35%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glass-card-deep {
+  background:           var(--color-bg-glass-dark);
+  backdrop-filter:      blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border:               1px solid rgba(255, 255, 255, 0.35);
+  border-bottom-color:  rgba(160, 158, 154, 0.30);
+  border-right-color:   rgba(160, 158, 154, 0.30);
+  border-radius:        var(--radius-card);
+  box-shadow:           var(--shadow-glass-deep);
+}
+
+.glass-modal {
+  background:           rgba(248, 247, 244, 0.80);
+  backdrop-filter:      blur(32px) saturate(1.8) brightness(1.05);
+  -webkit-backdrop-filter: blur(32px) saturate(1.8) brightness(1.05);
+  border:               1px solid rgba(255, 255, 255, 0.70);
+  border-radius:        var(--radius-modal);
+  box-shadow:           var(--shadow-modal);
+}
+
+.btn-primary {
+  background:     linear-gradient(160deg, var(--color-indigo-600), var(--color-indigo-800));
+  color:          var(--color-text-inverse);
+  border:         1px solid rgba(255,255,255,0.15);
+  border-radius:  var(--radius-md);
+  padding:        10px 24px;
+  font-family:    var(--font-body);
+  font-weight:    600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow:     0 2px 8px rgba(13,27,62,0.30), inset 0 1px 0 rgba(255,255,255,0.20);
+  transition:     all 0.15s ease;
+  cursor:         pointer;
+  text-align:     center;
+  display:        inline-block;
+}
+.btn-primary:hover {
+  background:   linear-gradient(160deg, var(--color-indigo-500), var(--color-indigo-700));
+  box-shadow:   0 4px 16px rgba(13,27,62,0.35), inset 0 1px 0 rgba(255,255,255,0.20);
+  transform:    translateY(-1px);
+}
+.btn-primary:active {
+  transform:    translateY(1px);
+  box-shadow:   inset 0 2px 4px rgba(0,0,0,0.20);
+}
+
+.btn-official {
+  background:     var(--color-gold-shine);
+  color:          #3D2800;
+  border:         1px solid rgba(160,120,48,0.50);
+  border-radius:  var(--radius-md);
+  padding:        10px 24px;
+  font-family:    var(--font-body);
+  font-weight:    600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow:     0 2px 8px rgba(160,120,48,0.35), inset 0 1px 0 rgba(255,248,200,0.60), inset 0 -1px 0 rgba(100,70,0,0.20);
+  transition:     all 0.15s ease;
+  cursor:         pointer;
+  text-align:     center;
+  display:        inline-block;
+}
+.btn-official:hover {
+  transform:    translateY(-1px);
+  box-shadow:   0 4px 16px rgba(160,120,48,0.45), inset 0 1px 0 rgba(255,248,200,0.60);
+}
+.btn-official:active {
+  transform:    translateY(1px);
+  box-shadow:   inset 0 2px 4px rgba(0,0,0,0.20);
+}
+
+.input-field {
+  background:       rgba(255, 255, 255, 0.55);
+  backdrop-filter:  blur(8px);
+  border:           1px solid var(--color-border-glass-b);
+  border-top-color: rgba(255,255,255,0.70);
+  border-radius:    var(--radius-sm);
+  padding:          10px 14px;
+  font-family:      var(--font-body);
+  color:            var(--color-text-primary);
+  box-shadow:       inset 0 2px 4px rgba(0,0,0,0.06);
+  transition:       border-color 0.15s, box-shadow 0.15s;
+}
+.input-field:focus {
+  outline:      none;
+  border-color: var(--color-indigo-500);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.06),
+    0 0 0 3px rgba(43, 78, 191, 0.18);
 }

@@ -1,4 +1,13 @@
-import { ApiResponse } from '../../../shared/types';
+import { createClient } from './supabase/client';
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T | null;
+  error: {
+    code: string;
+    message: string;
+  } | null;
+}
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -9,21 +18,9 @@ export async function apiFetch<T>(
   let session = null;
 
   try {
-    if (typeof window === 'undefined') {
-      // Server-side context
-      const { cookies } = await import('next/headers');
-      const { createClient } = await import('./supabase/server');
-      const cookieStore = cookies();
-      const supabase = createClient(cookieStore);
-      const { data } = await supabase.auth.getSession();
-      session = data.session;
-    } else {
-      // Client-side context
-      const { createClient } = await import('./supabase/client');
-      const supabase = createClient();
-      const { data } = await supabase.auth.getSession();
-      session = data.session;
-    }
+    const supabase = createClient();
+    const { data } = await supabase.auth.getSession();
+    session = data.session;
   } catch (err) {
     console.error('Error retrieving Supabase session for apiFetch:', err);
   }
@@ -71,3 +68,4 @@ export async function apiFetch<T>(
     };
   }
 }
+

@@ -16,8 +16,8 @@ apps/api/node_modules
 /coverage
 
 # next.js
-/.next/
-/out/
+apps/frontend/.next/
+apps/frontend/out/
 
 # production
 /build
@@ -42,12 +42,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# python virtual environment
+# python virtual environments
 venv/
 .venv/
 env/
 ENV/
 *.venv
+worker_venv/
 
 # python cache and bytecode
 __pycache__/
