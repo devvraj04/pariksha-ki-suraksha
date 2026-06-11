@@ -1,0 +1,6 @@
+opencv-python==4.9.0.80
+easyocr==1.7.1
+pyzbar==0.1.9
+pylibdmtx==0.1.10
+numpy==1.26.4
+supabase==2.4.0

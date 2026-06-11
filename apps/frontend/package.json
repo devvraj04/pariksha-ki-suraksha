@@ -1,0 +1,34 @@
+{
+  "name": "pariksha-ki-suraksha",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.3.0",
+    "@supabase/supabase-js": "^2.108.1",
+    "jsqr": "^1.4.0",
+    "next": "16.2.9",
+    "pdfjs-dist": "^4.2.67",
+    "qrcode": "^1.5.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/google.maps": "^3.55.5",
+    "@types/node": "^20",
+    "@types/qrcode": "^1.5.3",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9",
+    "supabase": "^2.105.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
