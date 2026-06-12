@@ -1,0 +1,27 @@
+# Python
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+
+# Node
+**/node_modules
+apps/frontend/.next
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# OS
+.DS_Store
+
+# Misc
+*.md
+*.png
+*.log
+supabase/.temp

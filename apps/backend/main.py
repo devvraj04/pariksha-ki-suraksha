@@ -3,6 +3,9 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from api.v1.forensic import limiter as forensic_limiter
 
 # Import module routers
 from api.v1.vault import router as vault_router
@@ -19,6 +22,24 @@ app = FastAPI(
     description="FastAPI Backend Orchestrator for LeakGuard AI security services",
     version="1.0.0"
 )
+
+# Attach slowapi rate limiter to app state (required for @limiter.limit to work)
+app.state.limiter = forensic_limiter
+
+# Custom 429 handler that returns the standard error envelope
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={
+            "success": False,
+            "data": None,
+            "error": {
+                "code": "ERR_RATE_LIMIT_EXCEEDED",
+                "message": "Too many requests. You are limited to 5 uploads per hour."
+            }
+        }
+    )
 
 # CORS Middleware to allow requests from Next.js frontends
 app.add_middleware(
