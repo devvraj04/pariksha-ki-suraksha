@@ -32,7 +32,7 @@ CREATE TABLE batch_receptions (
   received_by UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
   paper_count_expected INTEGER NOT NULL,
   paper_count_received INTEGER NOT NULL,
-  count_mismatch BOOLEAN NOT NULL GENERATED ALWAYS AS (paper_count_expected != paper_count_received) STORED,
+  count_mismatch BOOLEAN NOT NULL DEFAULT FALSE,
   qr_seal_verified BOOLEAN NOT NULL DEFAULT FALSE,
   received_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
