@@ -1,0 +1,98 @@
+# =============================================================================
+# ParikshaSetu Root Gitignore
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Node / Next.js / Frontend
+# -----------------------------------------------------------------------------
+node_modules/
+.next/
+out/
+build/
+dist/
+.npm
+.eslintcache
+.prettiercache
+*.tsbuildinfo
+
+# -----------------------------------------------------------------------------
+# Python / FastAPI / Celery
+# -----------------------------------------------------------------------------
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+
+# Testing / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.noserc
+nosetests.xml
+coverage.xml
+
+# Celery & logs
+celerybeat-schedule
+celerybeat.pid
+
+# -----------------------------------------------------------------------------
+# Secrets, Environment Variables & Configs
+# -----------------------------------------------------------------------------
+.env
+.env*.local
+*.env
+*local.env
+.env.backup
+.env.production
+secrets/
+*.pem
+*.key
+*.cert
+
+# -----------------------------------------------------------------------------
+# OS & Editor Specific
+# -----------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editors / IDEs
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+
+# -----------------------------------------------------------------------------
+# Logs and Runtime Files
+# -----------------------------------------------------------------------------
+*.log
+logs/
+tmp/
+temp/
+pids/
+*.pid

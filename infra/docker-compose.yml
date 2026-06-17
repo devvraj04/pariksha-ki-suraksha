@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: parikshasetu_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+
+  mqtt_broker:
+    image: eclipse-mosquitto:2
+    container_name: parikshasetu_mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mqtt_data:/mosquitto/data
+      - mqtt_log:/mosquitto/log
+    restart: always
+
+  celery_worker:
+    build:
+      context: ../
+      dockerfile: ./apps/api/Dockerfile
+    container_name: parikshasetu_celery_worker
+    command: celery -A apps.api.workers.celery_app.celery_app worker --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    depends_on:
+      - redis
+    restart: always
+
+  celery_beat:
+    build:
+      context: ../
+      dockerfile: ./apps/api/Dockerfile
+    container_name: parikshasetu_celery_beat
+    command: celery -A apps.api.workers.celery_app.celery_app beat --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    depends_on:
+      - redis
+    restart: always
+
+volumes:
+  redis_data:
+  mqtt_data:
+  mqtt_log:

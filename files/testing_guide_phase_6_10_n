@@ -1,0 +1,454 @@
+# ParikshaSetu — Testing Guide: Phases 6, 7, 8, 9 & 10
+### (Simultaneous Frontend + Backend)
+
+This guide walks you through every new module in one continuous session, verifying the **browser UI and backend terminal logs together** at each step.
+
+---
+
+## 1. Prerequisites & Setup
+
+### Servers Running
+Open **three terminals** in `C:\Users\Devraj\Desktop\ParikshaSetu\`:
+
+**Terminal 1 — FastAPI backend:**
+```powershell
+venv\Scripts\uvicorn apps.api.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Terminal 2 — Celery worker (Windows solo pool):**
+```powershell
+venv\Scripts\celery -A apps.api.workers.celery_app.celery_app worker --loglevel=info -P solo
+```
+> If Redis is not running, tasks execute synchronously (Eager Mode). The `[Celery] Redis is not reachable. Falling back to Eager Mode` line will appear — this is fine for local testing.
+
+**Terminal 3 — Next.js frontend:**
+```powershell
+cd apps\web && npm run dev
+```
+
+### Supabase Storage Buckets (One-Time)
+In your Supabase Dashboard → **Storage** → **New bucket**:
+- `question-papers-vault` → Private (no public access)
+- `answer-sheet-uploads` → Private (no public access)
+
+### Starting State
+You need an exam that has already gone through Phases 3–5:
+- Status: `ADMIT_CARDS_ISSUED`
+- Mode: `OFFLINE` (for printing & transit tabs)
+- At least **1 center** with at least **2 rooms**
+- At least **1 student** with an allocated center + issued admit card
+
+Login as **Agency Head** at:
+```
+http://national-testing-agency.localhost:3000/agency/login
+```
+Navigate to the exam workspace:
+```
+http://national-testing-agency.localhost:3000/agency/exams/[examId]
+```
+
+---
+
+## 2. Phase 6 — Secure Question Paper Vault
+
+### Step A: Open the Vault Tab
+1. In the exam workspace, click the **🔒 Question Vault** tab in the tab bar.
+2. **Expected UI:** A card titled "Secure Question Paper Vault (AES-256-GCM)" appears with a gold **"🔐 Start Monitored Upload Session"** button.
+
+> **Backend check (Terminal 1):** No log yet — session hasn't started.
+
+---
+
+### Step B: Start a Monitored Upload Session
+1. Click **"🔐 Start Monitored Upload Session"**.
+2. **Expected UI:**
+   - Button transforms to `● Session Active` (green, pulsing) + **End Session** button
+   - A amber-bordered panel appears: *"📷 Webcam monitoring active. Upload the encrypted question paper PDF."*
+   - File selector + **"Upload & Vault"** button appears
+
+3. **Expected Terminal 1 log:**
+```
+INFO: POST /api/v1/exams/.../papers/upload-session/start → 200
+```
+
+4. **Expected Supabase `audit_logs`:**
+   - `event_type = VAULT_UPLOAD_SESSION_STARTED`
+
+---
+
+### Step C: Upload & Encrypt a Question Paper
+1. Click **"Select PDF File"** → pick any PDF from your machine (even a dummy).
+2. Click **"Upload & Vault"**.
+3. **Expected UI:**
+   - Button shows `Encrypting…` spinner for a moment
+   - Alert popup: `"Paper encrypted and vaulted successfully!"`
+   - **"Vaulted Papers"** section appears below with the paper at status `VAULTED`
+   - **"Vault Access Log (Immutable)"** section appears with one `UPLOAD` entry
+
+4. **Expected Terminal 1 log:**
+```
+INFO: POST /api/v1/exams/.../papers → 200
+```
+
+5. **Expected Terminal 2 (Celery) log:**
+```
+[Celery] Scheduling decryption tasks for paper [id], exam [id]...
+[Celery] OFFLINE exam: scheduling decrypt_paper_for_print for paper [id]
+```
+
+6. **Expected Supabase checks:**
+   - `question_papers` table: 1 new row with `status = VAULTED`, `encryption_algorithm = AES-256-GCM`
+   - ✅ Confirm `key_share_1_vault_ref` starts with `vault:mock:` — **not** a raw hex key
+   - ✅ Confirm `key_share_2_hsm_ref` starts with `hsm:mock:`
+   - Storage → `question-papers-vault` bucket: file `[examId]/paper_v1.enc` exists
+   - `paper_vault_access_logs`: 1 row with `access_type = UPLOAD`
+
+---
+
+### Step D: End the Session
+1. Click **"End Session"**.
+2. **Expected UI:** Panel reverts to the initial "Start Monitored Upload Session" button.
+3. **Security check:** If you try the **"Upload & Vault"** button without a session, you should get an error.
+
+---
+
+## 3. Phase 7 — Intelligent Printing Module
+
+> **Note:** The 🖨 Print Module tab is only visible and enabled for `OFFLINE` mode exams. If your exam is `ONLINE`, skip to Phase 9.
+
+### Step A: Open the Print Module Tab
+1. Click the **🖨 Print Module** tab.
+2. Click **Refresh**.
+3. **Expected UI:** "Intelligent Printing Module" card with an "Initiate New Print Job" form + empty jobs table.
+
+---
+
+### Step B: Create a Print Job
+1. In the "Initiate New Print Job" form:
+   - **Center** → select your exam center from the dropdown
+   - **Copies Requested** → `10`
+   - **Printer ID** → `PRINTER-DEL-001`
+2. Click **"🖨 Create Print Job"**.
+3. **Expected UI:** Alert — `"Print job created. Status: SCHEDULED"` (or `COMPLETED` in eager mode).
+4. Click **Refresh** → job appears in the table.
+
+5. **Expected Terminal 2 (Celery) log (eager mode):**
+```
+[Celery] Executing print job [id]...
+[Celery] Print job [id] completed. 120 watermark records inserted.
+```
+*(10 copies × 12 pages = 120 rows)*
+
+6. **Expected Supabase checks:**
+   - `print_jobs` table: row with `status = COMPLETED`
+   - `print_watermark_registry`: **120 rows** for this job
+   - Each row has a `watermark_code` like: `DEL-01|PRINTER-D|...|P001|C0001|A3F9`
+
+---
+
+### Step C: Verify Surveillance (10% Chance Alert)
+1. The Celery task runs a surveillance mock with ~10% alert probability per execution.
+2. Click on a completed job row to expand alerts.
+3. **To force an alert** (run multiple times from terminal):
+   ```powershell
+   venv\Scripts\python -c "
+   from apps.api.workers.tasks_printing import run_print_room_surveillance
+   for i in range(15):
+       run_print_room_surveillance.delay('paste_real_job_id_here')
+   "
+   ```
+4. Refresh the Print Module tab. If an alert appeared, use the **Review...** dropdown → **"Dismiss"**.
+5. **Expected:** Alert shows `DISMISSED` badge.
+
+---
+
+## 4. Phase 8 — Chain-of-Custody Transit
+
+### Step A: Create a Transit Trunk
+1. Get your print job ID from the Print Module table.
+2. Run from PowerShell:
+   ```powershell
+   $TOKEN = "your_jwt_here"
+   $JOB = "your_completed_print_job_id"
+   $CENTER = "your_center_uuid"
+
+   $body = "{`"center_id`": `"$CENTER`", `"transport_vehicle_id`": `"DL-01-XY-5678`", `"driver_id`": `"DRV-001`", `"geofence_corridor_km`": 2.0}"
+   Invoke-RestMethod -Uri "http://localhost:8000/api/v1/print-jobs/$JOB/trunks" `
+     -Method POST `
+     -Headers @{ "Authorization" = "Bearer $TOKEN"; "Content-Type" = "application/json" } `
+     -Body $body
+   ```
+3. **Expected response:** `{"trunk_id": "...", "trunk_code": "TRK-...", "status": "SEALED", "integrity_seal": "sha256:..."}`
+4. Note down the `trunk_id`.
+
+---
+
+### Step B: View & Dispatch the Trunk in the UI
+1. Click the **🚚 Chain-of-Custody** tab → **Refresh**.
+2. **Expected UI:** Table row: `TRK-...` code, center name, status **SEALED** (amber badge).
+3. Click **"Dispatch"** on the row.
+4. **Expected UI:** Status badge changes to **IN_TRANSIT** (blue, pulsing).
+5. **Expected Supabase:**
+   - `transit_trunks`: `status = IN_TRANSIT`, `dispatched_at` set
+   - `transit_trunk_events`: row with `event_type = DISPATCHED`
+
+---
+
+### Step C: 3-Factor Trunk Unlock (Wizard UI)
+1. Open a **new browser tab:**
+   ```
+   http://national-testing-agency.localhost:3000/agency/center/[examId]/trunk-unlock
+   ```
+2. **Expected UI:** Step wizard — **GPS · OTP · Biometric · Confirmed** progress pills at the top.
+
+3. Enter the **Trunk UUID** in the field and click **"Verify GPS & Send OTP"**.
+
+4. **Expected UI:** A blue panel appears:
+   ```
+   Dev Mode — OTP (not sent in production):
+   [  4 7 1 8 2 9  ]
+   ```
+   Step advances to **OTP**.
+
+5. **Expected Terminal 1:**
+```
+INFO: POST /api/v1/trunks/.../unlock/request → 200
+```
+
+6. Type the 6-digit OTP from the blue box into the large input → click **"Verify OTP"**.
+
+7. **Expected UI:** Advances to **"Biometric & Receipt"** — shows *"Identity Confirmed (Mocked for Dev)"*.
+
+8. Click **"✓ Papers Correct"**.
+
+9. **Expected UI:** Full green screen — **"TRUNK SECURED & RECEIVED"**
+
+10. **Expected Terminal 1:**
+```
+INFO: POST /api/v1/trunks/.../unlock/confirm → 200
+INFO: POST /api/v1/trunks/.../receipt-confirm → 200
+```
+
+11. **Expected Supabase:**
+    - `transit_trunks`: `status = DELIVERED`
+    - `transit_trunk_events`: 3 entries — `UNLOCK_REQUESTED`, `UNLOCKED`, `DELIVERED`
+
+---
+
+### Step D: Geofence Rejection Test
+Run from PowerShell to simulate a device far from the center:
+```powershell
+$body = "{`"latitude`": 51.5074, `"longitude`": -0.1278}"  # London
+Invoke-RestMethod -Uri "http://localhost:8000/api/v1/trunks/$TRUNK/unlock/request" `
+  -Method POST `
+  -Headers @{ "Authorization" = "Bearer $TOKEN"; "Content-Type" = "application/json" } `
+  -Body $body
+```
+**Expected:** `{"otp_sent": false, "error": "OUTSIDE_GEOFENCE", "distance_meters": 6700000}`
+
+---
+
+## 5. Phase 9 — Day-of-Exam Operations
+
+### Step A: Get a Valid Admit Card JWT
+1. In Supabase → Table Editor → `admit_cards`:
+   - Find a row where `exam_id` = your exam
+   - Copy the full value of `qr_payload_jwt`
+
+---
+
+### Step B: Check-In Kiosk — QR Verification
+1. Open a **new browser tab:**
+   ```
+   http://national-testing-agency.localhost:3000/agency/center/[examId]/checkin
+   ```
+2. **Expected UI:**
+   - Check-in progress bar at top: `0 / [total_registered]`
+   - "Scan Admit Card QR" panel with a large textarea
+
+3. Paste the full `qr_payload_jwt` into the textarea.
+4. Click **"🔍 Verify QR Code"**.
+
+5. **Expected UI:** Advances to "QR Verified" step:
+   - ✅ Green checkmark
+   - Student's full name & email
+   - 3 biometric buttons: **MATCHED** (green) / **FAILED** (red) / **SKIPPED** (grey)
+
+6. **Expected Terminal 1:**
+```
+INFO: POST /api/v1/exams/.../checkin → 200
+```
+
+---
+
+### Step C: Confirm Check-In
+1. Select **"MATCHED"**.
+2. Click **"✓ Confirm Check-In"**.
+3. **Expected UI:** Full-screen green card:
+   - **CHECK-IN COMPLETE**
+   - Room: `ROOM-A`   Seat: `1`
+4. **Expected Terminal 1:**
+```
+INFO: POST /api/v1/exams/.../checkin/confirm → 200
+```
+5. **Expected Supabase:**
+   - `exam_day_checkins`: new row with `biometric_match_result = MATCHED`, `seat_number = 1`, `is_flagged = false`
+   - `exam_room_occupancy`: `current_occupancy` incremented to 1
+6. Progress bar updates to `1 / [total]`.
+7. Click **"→ Next Student"** to reset.
+
+---
+
+### Step D: Test Flagged Check-In
+1. Paste another (or same) JWT → Verify.
+2. Select **"FAILED"** for biometric → Confirm.
+3. **Expected UI:** Same green card BUT with an amber warning banner:
+   - ⚠ *"Student flagged for review"*
+4. **Expected Supabase:** `exam_day_checkins.is_flagged = true`, `flag_reason = BIOMETRIC_MISMATCH`
+
+---
+
+### Step E: Live Rooms Dashboard
+1. Open a new tab:
+   ```
+   http://national-testing-agency.localhost:3000/agency/center/[examId]/rooms
+   ```
+2. **Expected UI:**
+   - 4 summary stat cards at top
+   - Room grid — each room card has an occupancy bar
+3. The room from Step C should show `1 seated` with a green bar.
+4. Leave this tab open and check in another student in the kiosk tab.
+5. After 10 seconds the rooms tab **auto-refreshes** — the room card's occupancy count increments.
+6. When a room reaches 80% full, the bar and border turn **amber**. At 100%, they turn **red**.
+
+---
+
+### Step F: Agency Command Center (Surveillance)
+1. Click **Command Center** in the sidebar or go to:
+   ```
+   http://national-testing-agency.localhost:3000/agency/command-center
+   ```
+2. **Expected UI:** 3 stat cards, `● LIVE` indicator (green, pulsing), empty alert feed.
+3. Inject a mock alert via PowerShell:
+   ```powershell
+   $body = "{`"camera_id`": `"CAM-ROOM-A`", `"alert_type`": `"MOBILE_PHONE_DETECTED`", `"confidence_score`": 0.97, `"center_id`": `"$CENTER`"}"
+   Invoke-RestMethod -Uri "http://localhost:8000/api/v1/exams/$EXAM/surveillance/ingest" `
+     -Method POST `
+     -Headers @{ "Authorization" = "Bearer $TOKEN"; "Content-Type" = "application/json" } `
+     -Body $body
+   ```
+4. Wait 8 seconds (or click Refresh) — **"Mobile Phone"** alert appears in red.
+5. Click **"Escalate"** → badge changes to `ESCALATED`, Escalated counter increments.
+6. Verify filter pill **"Mobile Phone (1)"** appears — click it to filter.
+
+---
+
+## 6. Phase 10 — Answer Sheet Upload & AI Scoring
+
+### Step A: Upload an Answer Sheet
+1. Go to exam workspace → **📋 Answer Sheets** tab.
+2. In the upload panel:
+   - **Student UUID** → paste from Supabase `students` table
+   - **Center** → select from dropdown
+   - Click **"Select PDF"** → choose any PDF
+3. Click **"⬆ Upload & Score"**.
+4. **Expected Terminal 1:**
+```
+INFO: POST /api/v1/exams/.../answer-sheets/upload → 200
+```
+5. **Expected Terminal 2 (Celery):**
+```
+[Celery] Scoring answer sheet [id]...
+[Celery] Answer sheet [id] scored APPROVED. All 1 pages above threshold 8.0.
+```
+6. Sheet row appears in table with **APPROVED** (green) or **RESCAN_REQUIRED** (red, blinking).
+
+---
+
+### Step B: Rescan (If RESCAN_REQUIRED)
+1. Open the center officer interface in a new tab:
+   ```
+   http://national-testing-agency.localhost:3000/agency/center/[examId]/answer-sheets
+   ```
+2. Select the matching center tab.
+3. On the `RESCAN_REQUIRED` row, click the amber **"Rescan"** label → choose a PDF file.
+4. **Expected Terminal 2:**
+```
+[Celery] Scoring answer sheet [id]...
+[Celery] Answer sheet [id] scored APPROVED.
+```
+5. Status changes to **APPROVED**.
+
+---
+
+### Step C: Seal Individual Sheet
+1. On an `APPROVED` row, click **"Seal"** (purple button).
+2. **Expected UI:** Status badge → **SEALED** (purple).
+3. **Expected Supabase:**
+   - `answer_sheet_uploads`: `upload_status = SEALED`, `sealed_at` set, `seal_hash = sha256:...`
+
+---
+
+### Step D: Seal All Approved Sheets
+1. Upload 2–3 more sheets (repeat Step A) until they reach `APPROVED`.
+2. Click the purple **"Seal All X Approved Sheets"** button.
+3. **Expected:** Alert — `"3 answer sheets sealed successfully."`. All rows → **SEALED**.
+
+---
+
+### Step E: Trigger Evaluation Transition
+```powershell
+venv\Scripts\python -c "
+from apps.api.workers.tasks_evaluation import transition_exam_to_evaluation
+r = transition_exam_to_evaluation.delay('paste_exam_id_here')
+print(r.result)
+"
+```
+**Expected Terminal 2:**
+```
+[Celery] Checking evaluation readiness for exam [id]...
+[Celery] Exam [id] transitioned to EVALUATION_IN_PROGRESS.
+```
+**Expected Supabase:**
+- `exams.status = EVALUATION_IN_PROGRESS`
+- `audit_logs`: `event_type = EXAM_EVALUATION_STARTED`
+
+---
+
+## 7. Full Verification Checklist
+
+| # | Action | UI State | Terminal | Supabase |
+|---|--------|----------|----------|----------|
+| 1 | Start vault session | `● Session Active` | POST /upload-session/start 200 | `audit_logs` VAULT_UPLOAD_SESSION_STARTED |
+| 2 | Upload paper | `VAULTED` badge | POST /papers 200 | `question_papers` status=VAULTED |
+| 3 | Celery decrypt schedule | — | `Scheduling decryption tasks...` | — |
+| 4 | Create print job | Job in table | POST /print-jobs 200 | `print_jobs` status=COMPLETED |
+| 5 | Watermark matrix | — | `120 watermark records inserted` | `print_watermark_registry` 120 rows |
+| 6 | Create trunk | TRK-... row | — | `transit_trunks` status=SEALED |
+| 7 | Dispatch | IN_TRANSIT badge | POST /dispatch 200 | `transit_trunk_events` DISPATCHED |
+| 8 | Request OTP | Blue dev OTP box | POST /unlock/request 200 | `transit_trunk_otps` row |
+| 9 | Confirm OTP + receipt | "TRUNK SECURED" screen | POST /unlock/confirm 200 | status=DELIVERED |
+| 10 | QR check-in verify | Student name shown | POST /checkin 200 | — |
+| 11 | Confirm check-in | Room + Seat card | POST /checkin/confirm 200 | `exam_day_checkins` |
+| 12 | Live room update | Bar increments (10s) | GET /rooms/live 200 | `exam_room_occupancy` +1 |
+| 13 | Upload answer sheet | Row appears | POST /answer-sheets/upload 200 | `answer_sheet_uploads` |
+| 14 | AI scoring | APPROVED / RESCAN badge | `[Celery] Scoring answer sheet...` | `answer_sheet_visibility_scores` |
+| 15 | Seal sheet | SEALED badge (purple) | POST /seal 200 | `upload_status = SEALED` |
+| 16 | Evaluation transition | — | `Exam transitioned to EVALUATION_IN_PROGRESS` | `exams.status = EVALUATION_IN_PROGRESS` |
+
+---
+
+## 8. Common Issues & Fixes
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Vault upload fails with 500 | Bucket missing | Create `question-papers-vault` in Supabase Storage |
+| Answer sheet upload fails with 500 | Bucket missing | Create `answer-sheet-uploads` in Supabase Storage |
+| 🖨 Print tab grayed out | Exam mode is ONLINE | Only for OFFLINE exams |
+| 🚚 Transit tab grayed out | Exam mode is ONLINE | Only for OFFLINE exams |
+| OTP box never appears | Trunk not IN_TRANSIT | Dispatch the trunk first |
+| `OUTSIDE_GEOFENCE` on local test | Center has no lat/lon set | Add `latitude`, `longitude` to center row in Supabase |
+| QR verify — "Invalid signature" | Wrong JWT key | Set `ADMIT_CARD_JWT_PRIVATE_KEY` in `.env` |
+| Check-in fails — "No rooms available" | Room capacity reached | Add more rooms in Centers tab |
+| Always `RESCAN_REQUIRED` | Random AI mock (~15% fail rate) | Re-upload; it's probabilistic — try again |
+| Command Center shows no alerts | No ingest called | Use the PowerShell ingest command in Step F |
